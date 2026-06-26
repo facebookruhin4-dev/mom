@@ -1,0 +1,13 @@
+{
+  "name": "medex-node-bot",
+  "version": "1.0.0",
+  "description": "Medex Telegram Bot in Node.js",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "node-telegram-bot-api": "^0.66.0"
+  }
+}
