@@ -1,7 +1,7 @@
 const express = require('express');
-const login = require('fb-chat-api'); // আপনার সেই সফল লগইন হওয়া আসল লাইব্রেরি
+const login = require('fb-chat-api'); 
 const fs = require('fs');
-const app = _express();
+const app = express(); // 👈 এখানে আন্ডারস্কোরটা কেটে ঠিক করে দেওয়া হয়েছে
 
 const PORT = process.env.PORT || 10000;
 app.get('/', (req, res) => res.send('🚀 ওস্তাদ, সফল লাইব্রেরি + ইনবক্স স্ক্র্যাপার ফুল ফায়ারে সচল!'));
