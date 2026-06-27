@@ -8,6 +8,6 @@
   },
   "dependencies": {
     "express": "^4.19.2",
-    "fca-horizon-remake": "git+https://github.com/JohnArida/fca-horizon-remake.git"
+    "fca-sus": "^1.2.1"
   }
 }
