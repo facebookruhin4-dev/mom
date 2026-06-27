@@ -8,6 +8,6 @@
   },
   "dependencies": {
     "express": "^4.19.2",
-    "fb-chat-api": "^1.0.4"
+    "fb-chat-api": "github:fb-chat-api/fb-chat-api"
   }
 }
