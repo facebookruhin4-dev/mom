@@ -1,13 +1,13 @@
 {
-  "name": "fb-cookie-group-bot",
-  "version": "1.0.0",
-  "description": "Facebook Cookie Based Group Bot on Render",
+  "name": "fb-messenger-bot",
+  "version": "1.5.0",
+  "description": "Updated Anti-Ban Facebook Messenger Bot",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
     "express": "^4.19.2",
-    "fb-chat-api": "github:fb-chat-api/fb-chat-api"
+    "fca-horizon-remake": "^4.1.0"
   }
 }
