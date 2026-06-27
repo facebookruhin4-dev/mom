@@ -8,8 +8,6 @@
   },
   "dependencies": {
     "express": "^4.19.2",
-    "fb-chat-api": "github:fb-chat-api/fb-chat-api"
+    "fca-sus": "^1.2.1"
   }
 }
-
-
