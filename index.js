@@ -26,24 +26,24 @@ login({ appState: fbAppState }, (err, api) => {
 
     console.log("✅ ফেসবুক অ্যাকাউন্টে সফলভাবে লগইন হয়েছে ওস্তাদ!");
 
-    // 🛠️ ইনবক্স এবং গ্রুপ চ্যাট দুই জায়গাই একসাথে ট্র্যাক করার জন্য কনফিগারেশন
+    // 🛠️ কনফিগারেশন একদম সিম্পল ও নিখুঁত রাখা হলো
     api.setOptions({ 
         listenEvents: true, 
-        selfListen: false, // নিজের মেসেজে নিজে রিপ্লাই দেবে না
-        listenTypes: ["message", "message_reply", "incoming_message"] // ইনবক্স + গ্রুপ সব মেসেজ ধরবে
+        selfListen: false // নিজের মেসেজে নিজে রিপ্লাই দেবে না
     });
 
+    // listenMqtt অটোমেটিক ইনবক্স এবং গ্রুপ চ্যাটের সব মেসেজ রিয়েল-টাইমে রিসিভ করে
     api.listenMqtt((err, message) => {
         if (err) return console.error(err);
 
         // ইনবক্স (Direct Message) অথবা গ্রুপ চ্যাট যেকোনো জায়গায় টেক্সট মেসেজ আসলে
-        if ((message.type === "message" || message.type === "message_reply") && message.body) {
+        if (message.type === "message" && message.body) {
             const incomingMessage = message.body.toLowerCase().trim();
-            const threadId = message.threadID; // এটি ইনবক্স হলে ইউজারের আইডি, গ্রুপ হলে গ্রুপ আইডি হবে
+            const threadId = message.threadID; 
 
             console.log(`💬 নতুন মেসেজ এসেছে: "${message.body}" (Thread ID: ${threadId})`);
 
-            // 🎯 ভালোবাসা দেখানোর ট্রিকার শব্দসমূহ
+            // 🎯 ভালোবাসা দেখানোর ট্রিগার শব্দসমূহ
             if (incomingMessage.includes("ভালোবাসা") || incomingMessage.includes("love") || incomingMessage.includes("হাই") || incomingMessage.includes("বট")) {
                 
                 const loveMessages = [
@@ -55,7 +55,7 @@ login({ appState: fbAppState }, (err, api) => {
 
                 const randomReply = loveMessages[Math.floor(Math.random() * loveMessages.length)];
 
-                // অটোমেটিক মেসেজ পাঠানো (ইনবক্স বা গ্রুপ দুই জায়গাতেই কাজ করবে)
+                // অটোমেটিক মেসেজ পাঠানো (ইনবক্স ও গ্রুপ দুই জায়গাতেই ফায়ার হবে)
                 api.sendMessage(randomReply, threadId, (err) => {
                     if (err) console.error("❌ রিপ্লাই যায়নি:", err);
                     else console.log("✅ সুন্দর ভালোবাসার মেসেজ সফলভাবে পাঠানো হয়েছে!");
