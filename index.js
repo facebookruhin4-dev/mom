@@ -1,67 +1,71 @@
 const express = require('express');
-const login = require('fb-chat-api');
+const login = require('fca-horizon-remake');
 const fs = require('fs');
 const app = express();
 
 const PORT = process.env.PORT || 8080;
 app.get('/', (req, res) => {
-    res.send('🚀 ওস্তাদ, আপনার আনলিমিটেড HI রিপ্লাই বট রেন্ডারে চমৎকারভাবে সচল আছে!');
+    res.send('🚀 ওস্তাদ, আপনার আপডেটেড সুপার-বট রেন্ডারে ফুল ফায়ারে সচল আছে!');
 });
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 let fbAppState;
 try {
     fbAppState = JSON.parse(fs.readFileSync('appstate.json', 'utf8'));
-    console.log("✅ appstate.json ফাইল থেকে সফলভাবে কুকি লোড হয়েছে!");
+    console.log("✅ appstate.json থেকে কুকি সাকসেসফুলি লোড হয়েছে!");
 } catch (err) {
-    console.error("❌ appstate.json ফাইলটি পাওয়া যায়নি!", err);
+    console.error("❌ appstate.json ফাইলটি ঠিকমতো পাওয়া যায়নি!", err);
     process.exit(1);
 }
 
-login({ appState: fbAppState }, (err, api) => {
+// 🛡️ নতুন মেটা সিকিউরিটি এড়াতে কাস্টম কনফিগারেশন
+const botOptions = {
+    appState: fbAppState,
+    forceLogin: true
+};
+
+login(botOptions, (err, api) => {
     if (err) {
-        console.error("❌ লগইন করতে সমস্যা হয়েছে ওস্তাদ!", err);
+        console.error("❌ লগইন ফেইলড! কুকি ডেড হয়ে গেছে ওস্তাদ। নতুন কুকি লাগবে।", err);
         return;
     }
 
-    console.log("✅ ফেসবুক অ্যাকাউন্টে সফলভাবে লগইন হয়েছে ওস্তাদ!");
+    console.log("✅ ফেসবুক অ্যাকাউন্টে সফলভাবে প্রবেশ করা হয়েছে ওস্তাদ!");
 
-    api.setOptions({ listenEvents: false, selfListen: false });
+    // ⚡ লেটেস্ট লাইব্রেরির জন্য অপ্টিমাইজড সেটিংস
+    api.setOptions({ 
+        listenEvents: true, 
+        selfListen: false,
+        autoMarkRead: true, // মেসেজ আসা মাত্রই রিড করে নেবে
+        online: true
+    });
 
-    // 🎯 প্রতি ২ সেকেন্ড পর পর ইনবক্স রিফ্রেশ করে মেসেজ পাঠানোর ওস্তাদি লজিক
-    setInterval(() => {
-        api.getThreadList(10, null, ["INBOX"], (err, list) => {
-            if (err || !list) return;
+    console.log("📡 বটের কান খাড়া আছে, মেসেজ আসলেই খতম করে দেবে...");
 
-            list.forEach(thread => {
-                // চ্যাটে নতুন কোনো আনরিড মেসেজ আসলেই এটি ট্রিপ করবে
-                if (thread.unreadCount > 0 && thread.messageCount > 0) {
-                    
-                    api.getThreadHistory(thread.threadID, 1, null, (err, history) => {
-                        if (err || !history || history.length === 0) return;
-                        
-                        const lastMessage = history[0];
-                        
-                        // মেসেজটি অন্য কেউ দিলেই সাথে সাথে অ্যাকশনে যাবে
-                        if (lastMessage.senderID !== api.getCurrentUserID()) {
-                            const threadId = thread.threadID;
+    api.listenMqtt((err, message) => {
+        if (err) return console.error("❌ লিসেনিং এরর:", err);
 
-                            console.log(`📩 নতুন মেসেজ ডিটেক্ট হয়েছে! (ID: ${threadId})`);
+        // ইনবক্স বা গ্রুপ চ্যাটে যেকোনো মেসেজ আসলেই কাজ করবে
+        if ((message.type === "message" || message.type === "message_reply") && message.body) {
+            const threadId = message.threadID;
 
-                            // 💬 যেকোনো মেসেজের বিপরীতে ডিরেক্ট "HI" বা ভালোবাসার মেসেজ
-                            const replyMessage = "HI ❤️"; 
+            // নিজের মেসেজ বাদ দিয়ে অন্য কারো মেসেজ হলেই ধরবে
+            if (message.senderID !== api.getCurrentUserID()) {
+                console.log(`📩 নতুন মেসেজ এসেছে: "${message.body}"`);
 
-                            // মেসেজ পাঠিয়ে সাথে সাথে চ্যাটটি Read মার্ক করে দেবে যেন লুপ না হয়
-                            api.sendMessage(replyMessage, threadId, (err) => {
-                                if (!err) {
-                                    console.log(`✅ সফলভাবে "${replyMessage}" পাঠানো হয়েছে!`);
-                                    api.markAsRead(threadId, (err) => {});
-                                }
-                            });
+                // ⏱️ সেফটি ডিলয়: ১.৫ সেকেন্ড পর মানুষের মতো রিপ্লাই দেবে যেন ব্লক না খায়
+                setTimeout(() => {
+                    const replyMessage = "HI ❤️"; 
+
+                    api.sendMessage(replyMessage, threadId, (err) => {
+                        if (!err) {
+                            console.log(`✅ "${replyMessage}" সফলভাবে ডেলিভার করা হয়েছে!`);
+                        } else {
+                            console.error("❌ রিপ্লাই পাঠাতে সমস্যা হয়েছে:", err);
                         }
                     });
-                }
-            });
-        });
-    }, 2000); // প্রতি ২ সেকেন্ড পর পর রিফ্রেশ নিয়ে চেক করবে
+                }, 1500);
+            }
+        }
+    });
 });
