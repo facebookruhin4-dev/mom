@@ -1,10 +1,10 @@
 const express = require('express');
-const login = require('fb-chat-api'); // আপনার সেই আগের সফল লাইব্রেরি
+const login = require('fb-chat-api'); // আপনার সেই সফল লগইন হওয়া আসল লাইব্রেরি
 const fs = require('fs');
-const app = express();
+const app = _express();
 
 const PORT = process.env.PORT || 10000;
-app.get('/', (req, res) => res.send('🚀 ওস্তাদ, আপনার পুরনো সফল লাইব্রেরি দিয়ে ইনবক্স স্ক্র্যাপার সচল!'));
+app.get('/', (req, res) => res.send('🚀 ওস্তাদ, সফল লাইব্রেরি + ইনবক্স স্ক্র্যাপার ফুল ফায়ারে সচল!'));
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 let fbAppState;
@@ -21,7 +21,7 @@ login({ appState: fbAppState }, (err, api) => {
 
     console.log("✅ ফেসবুক অ্যাকাউন্টে সফলভাবে লগইন হয়েছে ওস্তাদ!");
     
-    // MQTT লিসেনারের ঝামেলা এড়াতে এটা বন্ধ রাখলাম
+    // MQTT লিসেনার সম্পূর্ণ বন্ধ (অ্যান্টি-ব্লক ও জ্যাম প্রটেকশন)
     api.setOptions({ listenEvents: false, selfListen: false });
 
     console.log("📡 প্রতি ৩ সেকেন্ড পর পর ইনবক্স স্ক্র্যাপ করে মেসেজ খোঁজা হচ্ছে...");
