@@ -1,13 +1,13 @@
 {
-  "name": "medex-node-bot",
+  "name": "fb-cookie-group-bot",
   "version": "1.0.0",
-  "description": "Medex Telegram Bot in Node.js",
+  "description": "Facebook Cookie Based Group Bot on Render",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
     "express": "^4.19.2",
-    "node-telegram-bot-api": "^0.66.0"
+    "fb-chat-api": "^1.0.4"
   }
 }
