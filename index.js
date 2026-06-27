@@ -3,14 +3,12 @@ const login = require('fb-chat-api');
 const fs = require('fs');
 const app = express();
 
-// 🌐 রেন্ডারকে ২৪ ঘণ্টা লাইভ রাখার জন্য ডামি ওয়েব সার্ভার
 const PORT = process.env.PORT || 8080;
 app.get('/', (req, res) => {
-    res.send('🚀 ওস্তাদ, আপনার ফেসবুক কুকি গ্রুপ বট রেন্ডারে চমৎকারভাবে সচল আছে!');
+    res.send('🚀 ওস্তাদ, আপনার ফেসবুক ইনবক্স + গ্রুপ বট রেন্ডারে চমৎকারভাবে সচল আছে!');
 });
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
-// 📁 আলাদা ফাইল থেকে কুকি (AppState) লোড করার ওস্তাদি ট্রিক
 let fbAppState;
 try {
     fbAppState = JSON.parse(fs.readFileSync('appstate.json', 'utf8'));
@@ -20,30 +18,32 @@ try {
     process.exit(1);
 }
 
-// 🤖 ফেসবুক কুকি দিয়ে লগইন এবং গ্রুপ চ্যাট মনিটরিং
 login({ appState: fbAppState }, (err, api) => {
     if (err) {
-        console.error("❌ লগইন করতে সমস্যা হয়েছে ওস্তাদ! কুকি এক্সপায়ার বা নষ্ট হতে পারে।", err);
+        console.error("❌ লগইন করতে সমস্যা হয়েছে ওস্তাদ!", err);
         return;
     }
 
     console.log("✅ ফেসবুক অ্যাকাউন্টে সফলভাবে লগইন হয়েছে ওস্তাদ!");
 
-    // নিজের মেসেজে নিজে যেন রিপ্লাই না দেয়
-    api.setOptions({ listenEvents: true, selfListen: false });
+    // 🛠️ ইনবক্স এবং গ্রুপ চ্যাট দুই জায়গাই একসাথে ট্র্যাক করার জন্য কনফিগারেশন
+    api.setOptions({ 
+        listenEvents: true, 
+        selfListen: false, // নিজের মেসেজে নিজে রিপ্লাই দেবে না
+        listenTypes: ["message", "message_reply", "incoming_message"] // ইনবক্স + গ্রুপ সব মেসেজ ধরবে
+    });
 
-    // মেসেজ শোনার লজিক
     api.listenMqtt((err, message) => {
         if (err) return console.error(err);
 
-        // গ্রুপ বা ইনবক্সে টেক্সট মেসেজ আসলে
-        if (message.type === "message" && message.body) {
+        // ইনবক্স (Direct Message) অথবা গ্রুপ চ্যাট যেকোনো জায়গায় টেক্সট মেসেজ আসলে
+        if ((message.type === "message" || message.type === "message_reply") && message.body) {
             const incomingMessage = message.body.toLowerCase().trim();
-            const threadId = message.threadID;
+            const threadId = message.threadID; // এটি ইনবক্স হলে ইউজারের আইডি, গ্রুপ হলে গ্রুপ আইডি হবে
 
-            console.log(`💬 নতুন মেসেজ: "${message.body}" (ID: ${threadId})`);
+            console.log(`💬 নতুন মেসেজ এসেছে: "${message.body}" (Thread ID: ${threadId})`);
 
-            // 🎯 গ্রুপে কেউ নক দিলে ভালোবাসা দেখানোর লজিক
+            // 🎯 ভালোবাসা দেখানোর ট্রিকার শব্দসমূহ
             if (incomingMessage.includes("ভালোবাসা") || incomingMessage.includes("love") || incomingMessage.includes("হাই") || incomingMessage.includes("বট")) {
                 
                 const loveMessages = [
@@ -55,10 +55,10 @@ login({ appState: fbAppState }, (err, api) => {
 
                 const randomReply = loveMessages[Math.floor(Math.random() * loveMessages.length)];
 
-                // অটোমেটিক রিপ্লাই পাঠানো
+                // অটোমেটিক মেসেজ পাঠানো (ইনবক্স বা গ্রুপ দুই জায়গাতেই কাজ করবে)
                 api.sendMessage(randomReply, threadId, (err) => {
                     if (err) console.error("❌ রিপ্লাই যায়নি:", err);
-                    else console.log("✅ সুন্দর ভালোবাসার মেসেজ পাঠানো হয়েছে!");
+                    else console.log("✅ সুন্দর ভালোবাসার মেসেজ সফলভাবে পাঠানো হয়েছে!");
                 });
             }
         }
