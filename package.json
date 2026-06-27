@@ -1,13 +1,13 @@
 {
   "name": "fb-cookie-group-bot",
   "version": "1.0.0",
-  "description": "Facebook Cookie Based Group Bot on Render",
+  "description": "Facebook Cookie Based Inbox Scraper Bot",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
     "express": "^4.19.2",
-    "fca-sus": "^1.2.1"
+    "fb-chat-api": "github:fb-chat-api/fca"
   }
 }
