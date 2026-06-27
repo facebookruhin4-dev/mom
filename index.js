@@ -1,80 +1,66 @@
-const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
+const login = require('fb-chat-api');
+const fs = require('fs');
 const app = express();
 
-// 🔑 আপনার টেলিগ্রাম বট টোকেন
-const token = '8962459681:AAEN-VzfP9yHpMBIn02hvsoQby5Z1CQktnA';
-const bot = new TelegramBot(token, { polling: true });
-
-// ইউজারের স্টেট (নাম/ঠিকানা ট্র্যাক করার জন্য) ডিক্লেয়ারেশন
-const userState = {};
-
-// 🌐 Render-এর জন্য ডামি ওয়েব সার্ভার (যাতে সার্ভার লাইভ থাকে)
+// 🌐 রেন্ডারকে ২৪ ঘণ্টা লাইভ রাখার জন্য ডামি ওয়েব সার্ভার
 const PORT = process.env.PORT || 8080;
 app.get('/', (req, res) => {
-    res.send('🚀 ওস্তাদ, আপনার Node.js মেডেক্স বট রেন্ডারে চমৎকারভাবে সচল আছে!');
+    res.send('🚀 ওস্তাদ, আপনার ফেসবুক কুকি গ্রুপ বট রেন্ডারে চমৎকারভাবে সচল আছে!');
 });
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
-// 🤖 /start কমান্ড হ্যান্ডলার
-bot.onText(/\/start/, (msg) => {
-    const chatId = msg.chat.id;
-    userState[chatId] = { step: 'awaiting_name' }; // প্রথম ধাপ সেট করলাম
+// 📁 আলাদা ফাইল থেকে কুকি (AppState) লোড করার ওস্তাদি ট্রিক
+let fbAppState;
+try {
+    fbAppState = JSON.parse(fs.readFileSync('appstate.json', 'utf8'));
+    console.log("✅ appstate.json ফাইল থেকে সফলভাবে কুকি লোড হয়েছে!");
+} catch (err) {
+    console.error("❌ appstate.json ফাইলটি পাওয়া যায়নি বা ফরম্যাট ভুল!", err);
+    process.exit(1);
+}
 
-    const welcomeMessage = `🩺 *ওস্তাদের স্পেশাল বটের পক্ষ থেকে স্বাগতম!*\n\n` +
-                           `আপনাকে আমাদের সিস্টেমে রেজিস্টার করতে জাস্ট দুটি ছোট তথ্য লাগবে।\n\n` +
-                           `👤 ওস্তাদ, দয়া করে প্রথমে আপনার *সম্পূর্ণ নাম* টাইপ করে পাঠান:`;
-    
-    bot.sendMessage(chatId, welcomeMessage, { parse_mode: 'Markdown' });
-});
-
-// 💬 মেসেজ রিসিভ এবং নাম + ঠিকানা নেওয়ার লজিক
-bot.on('message', (msg) => {
-    const chatId = msg.chat.id;
-    const text = msg.text ? msg.text.strip : '';
-
-    // যদি ইউজার কোনো কমান্ড দেয় (যেমন /start), তবে এই জেনারেল মেসেজ লজিক কাজ করবে না
-    if (msg.text && msg.text.startsWith('/')) return;
-
-    // যদি ইউজারের কোনো স্টেট না থাকে, তবে নরমাল রেসপন্স বা ওষুধ সার্চে যাবে
-    if (!userState[chatId]) {
-        // এখানে আপনি পরবর্তীতে ওষুধ সার্চের লজিক অ্যাড করতে পারবেন
+// 🤖 ফেসবুক কুকি দিয়ে লগইন এবং গ্রুপ চ্যাট মনিটরিং
+login({ appState: fbAppState }, (err, api) => {
+    if (err) {
+        console.error("❌ লগইন করতে সমস্যা হয়েছে ওস্তাদ! কুকি এক্সপায়ার বা নষ্ট হতে পারে।", err);
         return;
     }
 
-    const currentState = userState[chatId].step;
+    console.log("✅ ফেসবুক অ্যাকাউন্টে সফলভাবে লগইন হয়েছে ওস্তাদ!");
 
-    // ১. নাম নেওয়ার ধাপ
-    if (currentState === 'awaiting_name') {
-        userState[chatId].name = msg.text; // নাম সেভ হলো
-        userState[chatId].step = 'awaiting_address'; // পরবর্তী ধাপ সেট হলো
+    // নিজের মেসেজে নিজে যেন রিপ্লাই না দেয়
+    api.setOptions({ listenEvents: true, selfListen: false });
 
-        const addressMessage = `🎯 *ধন্যবাদ ওস্তাদ!*\n\n` +
-                               `আপনার নাম সফলভাবে নেওয়া হয়েছে। এবার দয়া করে আপনার *বর্তমান ঠিকানা (Address)* লিখে পাঠান:`;
-        bot.sendMessage(chatId, addressMessage, { parse_mode: 'Markdown' });
-    }
-    
-    // ২. ঠিকানা নেওয়ার ধাপ
-    else if (currentState === 'awaiting_address') {
-        userState[chatId].address = msg.text; // ঠিকানা সেভ হলো
-        const name = userState[chatId].name;
-        const address = userState[chatId].address;
+    // মেসেজ শোনার লজিক
+    api.listenMqtt((err, message) => {
+        if (err) return console.error(err);
 
-        // স্টেট ক্লিয়ার করে দেওয়া যাতে এর পরের মেসেজগুলো নরমালভাবে কাজ করে
-        delete userState[chatId]; 
+        // গ্রুপ বা ইনবক্সে টেক্সট মেসেজ আসলে
+        if (message.type === "message" && message.body) {
+            const incomingMessage = message.body.toLowerCase().trim();
+            const threadId = message.threadID;
 
-        const successMessage = `🎉 *রেজিস্ট্রেশন সম্পন্ন হয়েছে ওস্তাদ!*\n\n` +
-                               `🤝 *আপনার প্রোফাইল ডিটেইলস:*\n` +
-                               `⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n` +
-                               `👤 *নাম:* ${name}\n` +
-                               `📍 *ঠিকানা:* ${address}\n` +
-                               `⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n` +
-                               `🩺 এখন আপনি যেকোনো ওষুধের নাম লিখে সার্চ করতে পারেন। আমি আপনার সেবা করার জন্য প্রস্তুত!`;
+            console.log(`💬 নতুন মেসেজ: "${message.body}" (ID: ${threadId})`);
 
-        bot.sendMessage(chatId, successMessage, { parse_mode: 'Markdown' });
-    }
+            // 🎯 গ্রুপে কেউ নক দিলে ভালোবাসা দেখানোর লজিক
+            if (incomingMessage.includes("ভালোবাসা") || incomingMessage.includes("love") || incomingMessage.includes("হাই") || incomingMessage.includes("বট")) {
+                
+                const loveMessages = [
+                    "❤️ ওস্তাদের বটের পক্ষ থেকে একরাশ ভালোবাসা নিন! আপনার দিনটি চমৎকার কাটুক। ✨",
+                    "💖 ভালোবাসা সবসময় সুন্দর! আপনার মেসেজটি দেখে মনটা ভালো হয়ে গেল। 🥰",
+                    "🤗 অনেক অনেক ভালোবাসা আর শুভকামনা আপনার জন্য ওস্তাদ!",
+                    "🌹 আপনার জন্য এক বুক ভালোবাসা পাঠালাম! সবসময় হাসিখুশি থাকুন। 😉"
+                ];
+
+                const randomReply = loveMessages[Math.floor(Math.random() * loveMessages.length)];
+
+                // অটোমেটিক রিপ্লাই পাঠানো
+                api.sendMessage(randomReply, threadId, (err) => {
+                    if (err) console.error("❌ রিপ্লাই যায়নি:", err);
+                    else console.log("✅ সুন্দর ভালোবাসার মেসেজ পাঠানো হয়েছে!");
+                });
+            }
+        }
+    });
 });
-
-console.log("🤖 Node.js টেলিগ্রাম বট সফলভাবে চালু হয়েছে...");
