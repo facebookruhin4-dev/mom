@@ -1,64 +1,119 @@
 const express = require('express');
 const login = require('fb-chat-api'); 
 const fs = require('fs');
-const app = express(); // 👈 এখানে আন্ডারস্কোরটা কেটে ঠিক করে দেওয়া হয়েছে
+const app = express();
 
 const PORT = process.env.PORT || 10000;
-app.get('/', (req, res) => res.send('🚀 ওস্তাদ, সফল লাইব্রেরি + ইনবক্স স্ক্র্যাপার ফুল ফায়ারে সচল!'));
+app.get('/', (req, res) => res.send('🚀 Bot Web Service is Alive!'));
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+// =========================================
+// CONFIGURATION
+// =========================================
+const CONFIG = {
+    POLL_INTERVAL: 8000,          // Polling rate in ms. 8-10 seconds is safer against automated flags.
+    REPLY_TEXT: "HI ❤️",           // Your automated response
+    TARGET_SENDER_ID: "",         // Keep empty to reply to anyone, or input their Facebook ID (e.g. "10000xxxx") to target only them
+    ALLOW_GROUPS: false           // Prevents automatic replies inside group chats
+};
+
+// Cache to track successfully handled messages
+const repliedMessages = new Set();
 
 let fbAppState;
 try {
     fbAppState = JSON.parse(fs.readFileSync('appstate.json', 'utf8'));
-    console.log("✅ appstate.json ফাইল থেকে সফলভাবে কুকি লোড হয়েছে!");
+    console.log("✅ appstate.json loaded successfully!");
 } catch (err) {
-    console.error("❌ appstate.json ফাইলটি পাওয়া যায়নি!", err);
+    console.error("❌ appstate.json not found!", err);
     process.exit(1);
 }
 
 login({ appState: fbAppState }, (err, api) => {
-    if (err) return console.error("❌ লগইন করতে সমস্যা হয়েছে ওস্তাদ!", err);
+    if (err) return console.error("❌ Login failed!", err);
 
-    console.log("✅ ফেসবুক অ্যাকাউন্টে সফলভাবে লগইন হয়েছে ওস্তাদ!");
-    
-    // MQTT লিসেনার সম্পূর্ণ বন্ধ (অ্যান্টি-ব্লক ও জ্যাম প্রটেকশন)
+    console.log("✅ Facebook account successfully authenticated!");
+    const botID = api.getCurrentUserID();
+    console.log(`🤖 Bot User ID: ${botID}`);
+
+    // Disabling MQTT to prevent crashes due to regional gateway issues
     api.setOptions({ listenEvents: false, selfListen: false });
 
-    console.log("📡 প্রতি ৩ সেকেন্ড পর পর ইনবক্স স্ক্র্যাপ করে মেসেজ খোঁজা হচ্ছে...");
+    function pollInbox() {
+        console.log("📡 Polling inbox for unread messages...");
 
-    // 🎯 প্রতি ৩ সেকেন্ড পর পর ইনবক্স স্ক্র্যাপ করার মেইন ইঞ্জিন
-    setInterval(() => {
-        api.getThreadList(5, null, ["INBOX"], (err, list) => {
-            if (err || !list) return;
+        api.getThreadList(10, null, ["INBOX"], (err, list) => {
+            if (err) {
+                console.error("❌ Failed to scrape thread list:", err);
+                // Schedule the next check even if this poll fails
+                setTimeout(pollInbox, CONFIG.POLL_INTERVAL);
+                return;
+            }
+
+            if (!list || list.length === 0) {
+                console.log("📭 Thread list is empty or unreadable.");
+                setTimeout(pollInbox, CONFIG.POLL_INTERVAL);
+                return;
+            }
+
+            let processingReplies = 0;
 
             list.forEach(thread => {
-                // চ্যাটে কোনো আনরিড মেসেজ থাকলে স্ক্র্যাপার একটিভ হবে
-                if (thread.unreadCount > 0) {
-                    const threadId = thread.threadID;
+                const threadId = thread.threadID;
+                const unread = thread.unreadCount;
+                const lastMsgId = thread.lastMessageID;
+                const lastSender = thread.snippetSender;
+                const isGroup = thread.isGroup;
 
-                    // সর্বশেষ মেসেজটি স্ক্র্যাপ করে আনা
-                    api.getThreadHistory(threadId, 1, null, (err, history) => {
-                        if (err || !history || history.length === 0) return;
+                // Process if there is an unread message, it is not from ourselves, and has not been handled
+                if (unread > 0 && lastSender !== botID && lastMsgId && !repliedMessages.has(lastMsgId)) {
+                    
+                    // Filter groups if configured
+                    if (isGroup && !CONFIG.ALLOW_GROUPS) return;
 
-                        const lastMessage = history[0];
+                    // Filter target sender ID if configured
+                    if (CONFIG.TARGET_SENDER_ID && lastSender !== CONFIG.TARGET_SENDER_ID) return;
 
-                        // মেসেজটি যদি অন্য কেউ দিয়ে থাকে
-                        if (lastMessage.senderID !== api.getCurrentUserID()) {
-                            console.log(`📩 মেসেজ স্ক্র্যাপ হয়েছে: "${lastMessage.body}"`);
+                    console.log(`📩 New message: "${thread.snippet}" from Thread: ${threadId}`);
 
-                            const replyMessage = "HI ❤️";
+                    // Record to cache immediately to prevent concurrent triggers
+                    repliedMessages.add(lastMsgId);
+                    processingReplies++;
 
-                            // অটো-রিপ্লাই পাঠানো
-                            api.sendMessage(replyMessage, threadId, (err) => {
-                                if (!err) {
-                                    console.log(`✅ সফলভাবে "${replyMessage}" পাঠানো হয়েছে ওস্তাদ!`);
-                                    api.markAsRead(threadId, (err) => {});
-                                }
+                    api.sendMessage(CONFIG.REPLY_TEXT, threadId, (sendErr) => {
+                        if (!sendErr) {
+                            console.log(`✅ Automated reply "${CONFIG.REPLY_TEXT}" sent to ${threadId}`);
+                            
+                            // Reset unread count on Facebook's servers
+                            api.markAsRead(threadId, (readErr) => {
+                                if (readErr) console.error(`⚠️ Failed to mark thread ${threadId} as read:`, readErr);
                             });
+                        } else {
+                            console.error(`❌ Failed to send reply to ${threadId}:`, sendErr);
+                            // Remove from cache if the delivery failed so the bot can try again
+                            repliedMessages.delete(lastMsgId);
                         }
                     });
                 }
             });
+
+            if (processingReplies === 0) {
+                console.log("💤 No new matching messages detected.");
+            }
+
+            // Prune memory cache to keep memory footprint stable
+            if (repliedMessages.size > 200) {
+                const cacheArray = Array.from(repliedMessages);
+                repliedMessages.clear();
+                // Retain only the last 100 handled IDs
+                cacheArray.slice(-100).forEach(id => repliedMessages.add(id));
+            }
+
+            // Schedule the next iteration recursively after this iteration completes
+            setTimeout(pollInbox, CONFIG.POLL_INTERVAL);
         });
-    }, 3000);
+    }
+
+    // Launch polling loop
+    pollInbox();
 });
