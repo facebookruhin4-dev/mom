@@ -3,19 +3,21 @@ const login = require('cyber-bot-fca');
 const fs = require('fs');
 const path = require('path');
 
-// সবকটি কাস্টম ফাইল এখানে কানেক্ট করলাম
+// সবকটি কাস্টম ফাইল এখানে কানেক্ট করা হলো
 const { hasBannedWord } = require('./ban');
 const { getRandomCaption } = require('./caption');
 const { getReactionEmoji } = require('./react');
-const { isCallingBot, getBotReply } = require('./bot'); // নতুন bot.js ফাইল
+const { isCallingBot, getBotReply } = require('./bot'); 
+const { checkAndSendPrayerAlert, getBangladeshTime } = require('./islamic'); 
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
 const startTime = Date.now();
+let activeThreadID = null; // 🎯 গ্রুপ আইডি অটো সেভ রাখার জন্য গ্লোবাল ভেরিয়েবল
 
 app.get('/', (req, res) => {
-    res.send('Bot is running perfectly with Dedicated Bot Commands!');
+    res.send('Bot is running perfectly with 100% Automatic Islamic Alerts!');
 });
 
 app.listen(PORT, () => {
@@ -49,7 +51,17 @@ function startBot() {
             return;
         }
 
+        console.log("✅ ফেসবুক এপিআই সফলভাবে কানেক্ট হয়েছে ওস্তাদ!");
         const botID = api.getCurrentUserID();
+
+        // 🕋 ⏰ [মেইন ম্যাজিক] অলওয়েজ রানিং অটোমেটিক টাইমার
+        // কেউ মেসেজ দিক বা না দিক, এই টাইমারটি প্রতি ৩০ সেকেন্ড পর পর নিজে নিজেই চলবে
+        setInterval(() => {
+            if (activeThreadID) {
+                // কোনো মেসেজ ছাড়াই ব্যাকএন্ড থেকে ডিরেক্ট গ্রুপে মেসেজ পুশ হবে
+                checkAndSendPrayerAlert(api, activeThreadID);
+            }
+        }, 30000);
 
         api.listen((listenErr, message) => {
             if (listenErr) {
@@ -65,8 +77,14 @@ function startBot() {
                 const messageBody = message.body.trim();
                 const lowerBody = messageBody.toLowerCase();
 
-                // শুধু গ্রুপ চ্যাট এলাউ করবে, পার্সোনাল ইনবক্স ও নিজের মেসেজ ইগনোর
+                // শুধু গ্রুপ চ্যাট এলাу করবে, নিজের মেসেজ ইগনোর
                 if (senderId === botID || threadId === senderId) return;
+
+                // 🎯 গ্রুপে মেসেজ আসামাত্রই বট চিনে নিবে কোন গ্রুপে তাকে অটোমেটিক অ্যালার্ট দিতে হবে
+                if (activeThreadID !== threadId) {
+                    activeThreadID = threadId;
+                    console.log(`📌 অটোমেটিক অ্যালার্টের জন্য গ্রুপ আইডি সেট করা হলো: ${activeThreadID}`);
+                }
 
                 // 🚨 ১. সিকিউরিটি চেক: মেসেজে কোনো খারাপ শব্দ আছে কিনা
                 if (hasBannedWord(lowerBody)) {
@@ -77,7 +95,7 @@ function startBot() {
                     return; 
                 }
 
-                // ✨ ২. অটো রিয়েক্টシステム (মুড বুঝে রিয়েক্ট মারবে)
+                // ✨ ২. অটো রিয়েক্ট সিস্টেম (মুড বুঝে রিয়েক্ট মারবে)
                 const emoji = getReactionEmoji(messageBody);
                 if (emoji) {
                     api.setMessageReaction(emoji, messageID, (err) => {
@@ -85,9 +103,13 @@ function startBot() {
                     }, true);
                 }
 
-                // ⏰ ৩. রান-টাইম চেক: কেউ গ্রুপে /start দিলে
+                // ⏰ ৩. রান-টাইম চেক: কেউ গ্রুপে /start দিলে বাংলাদেশ সময় সহ দেখাবে
                 if (lowerBody === '/start') {
-                    const uptimeMessage = `🤖 ওমর অন ফায়ার বট অ্যাক্টিভ আছে ওস্তাদ!\n${getUptime()}`;
+                    const bdTime = getBangladeshTime();
+                    const timeString = bdTime.toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit', hour12: true });
+                    const dateString = bdTime.toLocaleDateString('bn-BD', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                    
+                    const uptimeMessage = `🤖 ওমর অন ফায়ার বট অ্যাক্টিভ আছে ওস্তাদ!\n${getUptime()}\n\n⏰ বর্তমান বাংলাদেশ সময়: ${timeString}\n📅 তারিখ: ${dateString}`;
                     api.sendMessage(uptimeMessage, threadId, messageID);
                     return;
                 }
@@ -96,13 +118,11 @@ function startBot() {
                 if (isCallingBot(messageBody)) {
                     const specialReply = getBotReply();
                     console.log(`🤖 বটকে ডাকা হয়েছে! স্পেশাল রেপ্লাই: "${specialReply}"`);
-                    api.sendMessage(specialReply, threadId, (err) => {
-                        if (err) console.error("স্পেশাল রেপ্লাই পাঠাতে সমস্যা:", err);
-                    }, messageID);
-                    return; // স্পেশাল জবাব দেওয়া হয়ে গেলে কাজ শেষ, নিচের সাধারণ ক্যাপশনে আর যাবে না
+                    api.sendMessage(specialReply, threadId, messageID);
+                    return; 
                 }
 
-                // 💥 ৫. অল-মেসেজ ক্যাপশন রিপ্লাই (কেউ সাধারণ কোনো মেসেজ দিলে)
+                // 💥 ۵. অল-মেসেজ ক্যাপশন রিপ্লাই (কেউ সাধারণ কোনো মেসেজ দিলে)
                 const randomCaption = getRandomCaption();
                 console.log(`💬 সাধারণ রেপ্লাই! পাঠানো হচ্ছে: "${randomCaption}"`);
                 api.sendMessage(randomCaption, threadId, (err) => {
