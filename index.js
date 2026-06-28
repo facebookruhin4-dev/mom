@@ -13,7 +13,7 @@ app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 const CONFIG = {
     REPLY_TEXT: "HI ❤️",           // বটের অটো-রেপ্লাই মেসেজ
     TARGET_SENDER_ID: "",         // নির্দিষ্ট কারও আইডি দিলে শুধু তাকেই রিপ্লাই করবে, খালি রাখলে সবাইকে
-    ALLOW_GROUPS: false           // গ্রুপ চ্যাটে অটো-রিপ্লাই বন্ধ রাখার জন্য false
+    ALLOW_GROUPS: true           // গ্রুপ চ্যাটে অটো-রিপ্লাই বন্ধ রাখার জন্য false
 };
 
 let fbAppState;
