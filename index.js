@@ -3,20 +3,17 @@ const login = require('cyber-bot-fca');
 const fs = require('fs');
 const path = require('path');
 
-// আমাদের নতুন বানানো ban.js ফাইলটি এখানে ইমপোর্ট করলাম
+// পুরাতন ban.js এবং নতুন caption.js দুইটাই এখানে ইমপোর্ট করলাম
 const { hasBannedWord } = require('./ban');
+const { getRandomCaption } = require('./caption');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
 const startTime = Date.now();
 
-const CONFIG = {
-    REPLY_TEXT: "HI ❤️"
-};
-
 app.get('/', (req, res) => {
-    res.send('Bot is running perfectly!');
+    res.send('Bot is running perfectly with Captions!');
 });
 
 app.listen(PORT, () => {
@@ -62,35 +59,38 @@ function startBot() {
             if (message && message.body) {
                 const threadId = message.threadID;
                 const senderId = message.senderID;
-                const messageBody = message.body.trim();
+                const messageBody = message.body.trim().toLowerCase(); // ছোট হাতের অক্ষরে কনভার্ট করে নিলাম
 
                 // শুধু গ্রুপ চ্যাট এলাউ করবে, পার্সোনাল ইনবক্স ও নিজের মেসেজ ইগনোর
                 if (senderId === botID || threadId === senderId) return;
 
-                // 🚨 সিকিউরিটি চেক: মেসেজে কোনো খারাপ শব্দ আছে কিনা
+                // 🚨 ১. সিকিউরিটি চেক: মেসেজে কোনো খারাপ শব্দ আছে কিনা
                 if (hasBannedWord(messageBody)) {
                     console.log(`⚠️ খারাপ মেসেজ ডিটেক্ট হয়েছে! Sender: ${senderId}`);
-                    
                     const warningMessage = "ভাই আমি আপনার মতো বিয়াদব না এসব গালী দিয়েন না ☺️😏🥵";
-                    
-                    // মেইন "HI ❤️" মেসেজ ইগনোর করে বিয়াদবি টাইপ ওয়ার্নিং পাঠানো হবে
-                    api.sendMessage(warningMessage, threadId, (err) => {
-                        if (err) console.error("ওয়ার্নিং মেসেজ পাঠাতে সমস্যা:", err);
-                    });
-                    return; // এখানেই কাজ শেষ, নিচের সাধারণ রেপ্লাইয়ে আর যাবে না
+                    api.sendMessage(warningMessage, threadId);
+                    return; 
                 }
 
-                // কেউ গ্রুপে /start দিলে রান-টাইম দেখাবে
+                // 🤖 ২. ক্যাপশন সিস্টেম: কেউ গ্রুপে 'bot' বা '/bot' লিখে ডাকলে
+                if (messageBody === 'bot' || messageBody === '/bot') {
+                    const randomCaption = getRandomCaption(); // র্যান্ডম ক্যাপশন তুলে আনা হলো
+                    console.log(`💬 ক্যাপশন রিকোয়েস্ট! পাঠানো হচ্ছে: "${randomCaption}"`);
+                    
+                    api.sendMessage(randomCaption, threadId, (err) => {
+                        if (err) console.error("ক্যাপশন পাঠাতে সমস্যা:", err);
+                    });
+                    return; // ক্যাপশন পাঠিয়ে দিলে কাজ শেষ, নিচে আর যাবে না
+                }
+
+                // ⏰ ৩. রান-টাইম চেক: কেউ গ্রুপে /start দিলে
                 if (messageBody === '/start') {
                     const uptimeMessage = `🤖 ওমর অন ফায়ার বট অ্যাক্টিভ আছে ওস্তাদ!\n${getUptime()}`;
                     api.sendMessage(uptimeMessage, threadId);
                     return;
                 }
 
-                // সাধারণ মেসেজের জন্য রেপ্লাই
-                api.sendMessage(CONFIG.REPLY_TEXT, threadId, (sendErr) => {
-                    if (sendErr) console.error(`❌ মেসেজ পাঠাতে সমস্যা!`, sendErr);
-                });
+                // [নোট: সাধারণ মেসেজে এখন আর কোনো "HI ❤️" রেপ্লাই যাবে না, শুধু কমান্ডেই কাজ করবে]
             }
         });
     });
