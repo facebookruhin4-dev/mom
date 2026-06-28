@@ -1,7 +1,7 @@
 {
-  "name": "fb-cookie-group-bot",
+  "name": "fb-automated-reply-bot",
   "version": "1.0.0",
-  "description": "Facebook Cookie Based Group Bot on Render",
+  "description": "Facebook automated reply bot with fallback HTTP polling listener and Express keep-alive.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -9,5 +9,8 @@
   "dependencies": {
     "express": "^4.19.2",
     "fb-chat-api": "github:ntkhang03/fb-chat-api-temp"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
