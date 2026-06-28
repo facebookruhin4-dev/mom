@@ -3,18 +3,18 @@ const login = require('cyber-bot-fca');
 const fs = require('fs');
 const path = require('path');
 
-// সবকটি কাস্টম ফাইল কানেকশন
+// কাস্টম ফাইল কানেকশনস
 const { hasBannedWord } = require('./ban');
 const { getRandomCaption } = require('./caption');
 const { getReactionEmoji } = require('./react');
 
-const app = express(); // 👑 টাইপো ফিক্সড ওস্তাদ!
+const app = express();
 const PORT = process.env.PORT || 10000;
 
 const startTime = Date.now();
 
 app.get('/', (req, res) => {
-    res.send('Bot is running perfectly with Captions and Reactions!');
+    res.send('Bot is running perfectly with Auto-Reply & Reactions!');
 });
 
 app.listen(PORT, () => {
@@ -60,7 +60,7 @@ function startBot() {
             if (message && message.body) {
                 const threadId = message.threadID;
                 const senderId = message.senderID;
-                const messageID = message.messageID;
+                const messageID = message.messageID; // রিপ্লাই এবং রিয়েক্টের জন্য আসল চাবিকাঠি
                 const messageBody = message.body.trim();
                 const lowerBody = messageBody.toLowerCase();
 
@@ -71,12 +71,14 @@ function startBot() {
                 if (hasBannedWord(lowerBody)) {
                     console.log(`⚠️ খারাপ মেসেজ ডিটেক্ট হয়েছে! Sender: ${senderId}`);
                     const warningMessage = "ভাই আমি আপনার মতো বিয়াদব না এসব গালী দিয়েন না ☺️😏🥵";
-                    api.sendMessage(warningMessage, threadId);
+                    
+                    // খারাপ মেসেজটাকেও রিপ্লাই করে ওয়ার্নিং দেওয়া হবে
+                    api.sendMessage({ body: warningMessage, mentions: [{ tag: warningMessage, id: senderId }] }, threadId, messageID);
                     api.setMessageReaction("😡", messageID, (err) => { if(err) console.error(err); }, true);
                     return; 
                 }
 
-                // ✨ ২. অটো রিয়েক্ট সিস্টেম
+                // ✨ ২. অটো রিয়েক্ট সিস্টেম (মেসেজ আসার সাথে সাথে রিয়েক্ট মারবে)
                 const emoji = getReactionEmoji(messageBody);
                 if (emoji) {
                     api.setMessageReaction(emoji, messageID, (err) => {
@@ -84,31 +86,33 @@ function startBot() {
                     }, true);
                 }
 
-                // 🤖 ৩. ক্যাপশন সিস্টেম: কেউ গ্রুপে 'bot' বা '/bot' লিখে ডাকলে
-                if (lowerBody === 'bot' || lowerBody === '/bot') {
-                    const randomCaption = getRandomCaption();
-                    api.sendMessage(randomCaption, threadId);
+                // ⏰ ৩. রান-টাইম চেক: কেউ গ্রুপে /start দিলে
+                if (lowerBody === '/start') {
+                    const uptimeMessage = `🤖 ওমর অন ফায়ার বট অ্যাক্টিভ আছে ওস্তাদ!\n${getUptime()}`;
+                    api.sendMessage(uptimeMessage, threadId, messageID); // নির্দিষ্ট মেসেজকে রিপ্লাই
                     return;
                 }
 
-                // ⏰ ৪. রান-টাইম চেক: কেউ গ্রুপে /start দিলে
-                if (lowerBody === '/start') {
-                    const uptimeMessage = `🤖 ওমর অন ফায়ার বট অ্যাক্টিভ আছে ওস্তাদ!\n${getUptime()}`;
-                    api.sendMessage(uptimeMessage, threadId);
-                    return;
-                }
+                // 💥 ৪. অল-মেসেজ ক্যাপশন রিপ্লাই (এখন যে কেউ যাই মেসেজ দিক না কেন, বট রিপ্লাই করবে)
+                const randomCaption = getRandomCaption();
+                console.log(`💬 অল-মেসেজ রেপ্লাই! পাঠানো হচ্ছে: "${randomCaption}"`);
+                
+                // এখানে আমরা অবজেক্ট না পাঠিয়ে সরাসরি মেসেজ টেক্সট এবং ৩য় প্যারামিটার হিসেবে messageID পাস করছি জাস্ট চট করে রিপ্লাই হওয়ার জন্য
+                api.sendMessage(randomCaption, threadId, (err) => {
+                    if (err) console.error("ক্যাপশন রিপ্লাই পাঠাতে সমস্যা:", err);
+                }, messageID);
             }
         });
     });
 }
 
 process.on('uncaughtException', (err) => {
-    console.error('🔥 ক্র্যাশ এড়াতে Uncaught Exception হ্যান্ডেল করা হলো:', err);
+    console.error('🔥 - ক্র্যাশ এড়াতে Uncaught Exception হ্যান্ডেল করা হলো:', err);
     setTimeout(startBot, 3000);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    console.error('🔥 ক্র্যাশ এড়াতে Unhandled Rejection হ্যান্ডেল করা হলো:', reason);
+    console.error('🔥 - ক্র্যাশ এড়াতে Unhandled Rejection হ্যান্ডেল করা হলো:', reason);
     setTimeout(startBot, 3000);
 });
 
