@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "express": "^4.19.2",
-    "cyber-bot-fca": "^1.0.3"
+    "cyber-bot-fca": "^1.0.3",
+    "websocket-stream": "^5.5.2" 
   }
 }
