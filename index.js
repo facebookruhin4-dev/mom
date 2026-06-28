@@ -1,90 +1,99 @@
 const express = require('express');
-const login = require('cyber-bot-fca'); 
+const login = require('cyber-bot-fca');
 const fs = require('fs');
+const path = require('path');
+
 const app = express();
-
 const PORT = process.env.PORT || 10000;
-app.get('/', (req, res) => res.send('🚀 ওস্তাদ, সাইবার এফসিএ সুপার ইঞ্জিন ফুল অ্যাক্টিভ!'));
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
-// =========================================
-// GLOBAL CONFIGURATION
-// =========================================
+// বটের রান-টাইম হিসাব করার জন্য শুরুর সময়টা সেভ করে রাখছি
+const startTime = Date.now();
+
 const CONFIG = {
-    REPLY_TEXT: "HI ❤️",           // বটের অটো-রেপ্লাই মেসেজ
-    TARGET_SENDER_ID: "",         // নির্দিষ্ট কারও আইডি দিলে শুধু তাকেই রিপ্লাই করবে, খালি রাখলে সবাইকে
-    ALLOW_GROUPS: true           // গ্রুপ চ্যাটে অটো-রিপ্লাই বন্ধ রাখার জন্য false
+    REPLY_TEXT: "HI ❤️",
+    ALLOW_GROUPS_ONLY: true // শুধু গ্রুপে কাজ করবে
 };
 
-let fbAppState;
-try {
-    fbAppState = JSON.parse(fs.readFileSync('appstate.json', 'utf8'));
-    console.log("✅ appstate.json loaded successfully!");
-} catch (err) {
-    console.error("❌ appstate.json not found!", err);
-    process.exit(1);
+app.get('/', (req, res) => {
+    res.send('Bot is running perfectly!');
+});
+
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
+
+// রান-টাইম (Uptime) ফরম্যাট করার ফাংশন
+function getUptime() {
+    const totalSeconds = Math.floor((Date.now() - startTime) / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    return `⏳ রান-টাইম: ${hours} ঘণ্টা, ${minutes} মিনিট, ${seconds} সেকেন্ড ওস্তাদ!`;
 }
 
+// মূল বট স্টার্ট করার ফাংশন
 function startBot() {
-    login({ appState: fbAppState }, (err, api) => {
+    console.log("🤖 বট স্টার্ট করা হচ্ছে...");
+    
+    const appStatePath = path.join(__dirname, 'appstate.json');
+    if (!fs.existsSync(appStatePath)) {
+        console.error("❌ appstate.json ফাইলটি পাওয়া যায়নি!");
+        return;
+    }
+
+    const appState = JSON.parse(fs.readFileSync(appStatePath, 'utf8'));
+
+    login({ appState }, (err, api) => {
         if (err) {
-            console.error("❌ লগইন ব্যর্থ! ৫ সেকেন্ড পর আবার চেষ্টা করা হচ্ছে...", err);
-            setTimeout(startBot, 5000);
+            console.error("⚠️ লগইন করতে ঝামেলা হয়েছে, ৩ সেকেন্ড পর আবার চেষ্টা করছি...", err);
+            setTimeout(startBot, 3000); // ভেজাল হলে ৩ সেকেন্ড পর অটো রিস্টার্ট হবে
             return;
         }
 
-        console.log("✅ ফেসবুক অ্যাকাউন্টে সফলভাবে লগইন হয়েছে ওস্তাদ!");
         const botID = api.getCurrentUserID();
-        console.log(`🤖 বটের নিজস্ব ইউজার আইডি: ${botID}`);
-        
-        // লাইব্রেরির সোর্স কোড অনুযায়ী অপটিমাইজড অপশনস
-        api.setOptions({ 
-            listenEvents: true, 
-            selfListen: false,
-            autoMarkRead: true,
-            online: true
-        });
 
-        console.log("📡 লাইভ মেসেজের জন্য লিসেনিং ইঞ্জিন সচল করা হলো...");
-
-        // api.listen কল করলে এটি ব্যাকএন্ডে স্বয়ংক্রিয়ভাবে listenMqtt লুপ ফায়ার করবে
         api.listen((listenErr, message) => {
             if (listenErr) {
-                console.error("⚠️ লিসেনারে সমস্যা, সেলফ-হিলিং রিবুট নেওয়া হচ্ছে...", listenErr);
-                setTimeout(startBot, 5000);
+                console.error("⚠️ লিসেনারে সমস্যা, ইঞ্জিন রিস্টার্ট করা হচ্ছে...", listenErr);
+                setTimeout(startBot, 3000); // লিসেনারে ভেজাল হলেও অটো রিস্টার্ট
                 return;
             }
 
-            // শুধুমাত্র নতুন ইনকামিং মেসেজ প্রসেস করার জন্য
-            if (message && message.type === "message") {
+            if (message && message.body) {
                 const threadId = message.threadID;
                 const senderId = message.senderID;
-                const isGroup = message.isGroup || false;
+                const messageBody = message.body.trim();
 
-                // মেসেজটি যদি নিজের অ্যাকাউন্ট থেকে না আসে
-                if (senderId !== botID) {
-                    
-                    // গ্রুপ চ্যাট রেস্ট্রিকশন ফিল্টার
-                    if (isGroup && !CONFIG.ALLOW_GROUPS) return;
+                // বট নিজের মেসেজ ইগনোর করবে এবং শুধু গ্রুপ চ্যাট (যেখানে threadID আর senderID এক না) এলাউ করবে
+                if (senderId === botID || threadId === senderId) return;
 
-                    // নির্দিষ্ট টার্গেট ইউজার ফিল্টার
-                    if (CONFIG.TARGET_SENDER_ID && senderId !== CONFIG.TARGET_SENDER_ID) return;
-
-                    console.log(`📩 নতুন মেসেজ ইন্টারসেপ্ট হয়েছে: "${message.body}" from ID: ${senderId}`);
-
-                    // মেসেজ ডেলিভারি মেকানিজম (আধুনিক মেথড ফেইল করলে লাইব্রেরি অটো ওল্ড-মেথড ব্যাকআপ ফায়ার করবে)
-                    api.sendMessage(CONFIG.REPLY_TEXT, threadId, (sendErr) => {
-                        if (!sendErr) {
-                            console.log(`✅ Automated reply "${CONFIG.REPLY_TEXT}" delivered to ${threadId}`);
-                        } else {
-                            console.error(`❌ মেসেজ পাঠাতে সমস্যা!`, sendErr);
-                        }
-                    });
+                // কেউ গ্রুপে /start দিলে রান-টাইম দেখাবে
+                if (messageBody === '/start') {
+                    const uptimeMessage = `🤖 ওমর অন ফায়ার বট অ্যাক্টিভ আছে ওস্তাদ!\n${getUptime()}`;
+                    api.sendMessage(uptimeMessage, threadId);
+                    return;
                 }
+
+                // অন্য যেকোনো মেসেজের জন্য সাধারণ রেপ্লাই
+                api.sendMessage(CONFIG.REPLY_TEXT, threadId, (sendErr) => {
+                    if (sendErr) console.error(`❌ মেসেজ পাঠাতে সমস্যা!`, sendErr);
+                });
             }
         });
     });
 }
 
-// ইঞ্জিন স্টার্ট
+// প্রজেক্টে কোনো আনকচ বা বড় এরর (Crash Error) আসলেও যাতে ক্র্যাশ না করে রিস্টার্ট হয়
+process.on('uncaughtException', (err) => {
+    console.error('🔥 ক্র্যাশ এড়াতে Uncaught Exception হ্যান্ডেল করা হলো:', err);
+    setTimeout(startBot, 3000);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('🔥 ক্র্যাশ এড়াতে Unhandled Rejection হ্যান্ডেল করা হলো:', reason);
+    setTimeout(startBot, 3000);
+});
+
+// প্রথমবার রান করার জন্য কল করা হলো
 startBot();
