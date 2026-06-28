@@ -3,15 +3,16 @@ const login = require('cyber-bot-fca');
 const fs = require('fs');
 const path = require('path');
 
+// আমাদের নতুন বানানো ban.js ফাইলটি এখানে ইমপোর্ট করলাম
+const { hasBannedWord } = require('./ban');
+
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// বটের রান-টাইম হিসাব করার জন্য শুরুর সময়টা সেভ করে রাখছি
 const startTime = Date.now();
 
 const CONFIG = {
-    REPLY_TEXT: "HI ❤️",
-    ALLOW_GROUPS_ONLY: true // শুধু গ্রুপে কাজ করবে
+    REPLY_TEXT: "HI ❤️"
 };
 
 app.get('/', (req, res) => {
@@ -22,7 +23,6 @@ app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
 
-// রান-টাইম (Uptime) ফরম্যাট করার ফাংশন
 function getUptime() {
     const totalSeconds = Math.floor((Date.now() - startTime) / 1000);
     const hours = Math.floor(totalSeconds / 3600);
@@ -32,7 +32,6 @@ function getUptime() {
     return `⏳ রান-টাইম: ${hours} ঘণ্টা, ${minutes} মিনিট, ${seconds} সেকেন্ড ওস্তাদ!`;
 }
 
-// মূল বট স্টার্ট করার ফাংশন
 function startBot() {
     console.log("🤖 বট স্টার্ট করা হচ্ছে...");
     
@@ -47,7 +46,7 @@ function startBot() {
     login({ appState }, (err, api) => {
         if (err) {
             console.error("⚠️ লগইন করতে ঝামেলা হয়েছে, ৩ সেকেন্ড পর আবার চেষ্টা করছি...", err);
-            setTimeout(startBot, 3000); // ভেজাল হলে ৩ সেকেন্ড পর অটো রিস্টার্ট হবে
+            setTimeout(startBot, 3000);
             return;
         }
 
@@ -56,7 +55,7 @@ function startBot() {
         api.listen((listenErr, message) => {
             if (listenErr) {
                 console.error("⚠️ লিসেনারে সমস্যা, ইঞ্জিন রিস্টার্ট করা হচ্ছে...", listenErr);
-                setTimeout(startBot, 3000); // লিসেনারে ভেজাল হলেও অটো রিস্টার্ট
+                setTimeout(startBot, 3000);
                 return;
             }
 
@@ -65,8 +64,21 @@ function startBot() {
                 const senderId = message.senderID;
                 const messageBody = message.body.trim();
 
-                // বট নিজের মেসেজ ইগনোর করবে এবং শুধু গ্রুপ চ্যাট (যেখানে threadID আর senderID এক না) এলাউ করবে
+                // শুধু গ্রুপ চ্যাট এলাউ করবে, পার্সোনাল ইনবক্স ও নিজের মেসেজ ইগনোর
                 if (senderId === botID || threadId === senderId) return;
+
+                // 🚨 সিকিউরিটি চেক: মেসেজে কোনো খারাপ শব্দ আছে কিনা
+                if (hasBannedWord(messageBody)) {
+                    console.log(`⚠️ খারাপ মেসেজ ডিটেক্ট হয়েছে! Sender: ${senderId}`);
+                    
+                    const warningMessage = "ভাই আমি আপনার মতো বিয়াদব না এসব গালী দিয়েন না ☺️😏🥵";
+                    
+                    // মেইন "HI ❤️" মেসেজ ইগনোর করে বিয়াদবি টাইপ ওয়ার্নিং পাঠানো হবে
+                    api.sendMessage(warningMessage, threadId, (err) => {
+                        if (err) console.error("ওয়ার্নিং মেসেজ পাঠাতে সমস্যা:", err);
+                    });
+                    return; // এখানেই কাজ শেষ, নিচের সাধারণ রেপ্লাইয়ে আর যাবে না
+                }
 
                 // কেউ গ্রুপে /start দিলে রান-টাইম দেখাবে
                 if (messageBody === '/start') {
@@ -75,7 +87,7 @@ function startBot() {
                     return;
                 }
 
-                // অন্য যেকোনো মেসেজের জন্য সাধারণ রেপ্লাই
+                // সাধারণ মেসেজের জন্য রেপ্লাই
                 api.sendMessage(CONFIG.REPLY_TEXT, threadId, (sendErr) => {
                     if (sendErr) console.error(`❌ মেসেজ পাঠাতে সমস্যা!`, sendErr);
                 });
@@ -84,7 +96,6 @@ function startBot() {
     });
 }
 
-// প্রজেক্টে কোনো আনকচ বা বড় এরর (Crash Error) আসলেও যাতে ক্র্যাশ না করে রিস্টার্ট হয়
 process.on('uncaughtException', (err) => {
     console.error('🔥 ক্র্যাশ এড়াতে Uncaught Exception হ্যান্ডেল করা হলো:', err);
     setTimeout(startBot, 3000);
@@ -95,5 +106,4 @@ process.on('unhandledRejection', (reason, promise) => {
     setTimeout(startBot, 3000);
 });
 
-// প্রথমবার রান করার জন্য কল করা হলো
 startBot();
