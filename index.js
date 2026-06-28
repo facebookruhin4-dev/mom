@@ -3,10 +3,11 @@ const login = require('cyber-bot-fca');
 const fs = require('fs');
 const path = require('path');
 
-// কাস্টম ফাইল কানেকশনস
+// সবকটি কাস্টম ফাইল এখানে কানেক্ট করলাম
 const { hasBannedWord } = require('./ban');
 const { getRandomCaption } = require('./caption');
 const { getReactionEmoji } = require('./react');
+const { isCallingBot, getBotReply } = require('./bot'); // নতুন bot.js ফাইল
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -14,7 +15,7 @@ const PORT = process.env.PORT || 10000;
 const startTime = Date.now();
 
 app.get('/', (req, res) => {
-    res.send('Bot is running perfectly with Auto-Reply & Reactions!');
+    res.send('Bot is running perfectly with Dedicated Bot Commands!');
 });
 
 app.listen(PORT, () => {
@@ -60,7 +61,7 @@ function startBot() {
             if (message && message.body) {
                 const threadId = message.threadID;
                 const senderId = message.senderID;
-                const messageID = message.messageID; // রিপ্লাই এবং রিয়েক্টের জন্য আসল চাবিকাঠি
+                const messageID = message.messageID;
                 const messageBody = message.body.trim();
                 const lowerBody = messageBody.toLowerCase();
 
@@ -71,14 +72,12 @@ function startBot() {
                 if (hasBannedWord(lowerBody)) {
                     console.log(`⚠️ খারাপ মেসেজ ডিটেক্ট হয়েছে! Sender: ${senderId}`);
                     const warningMessage = "ভাই আমি আপনার মতো বিয়াদব না এসব গালী দিয়েন না ☺️😏🥵";
-                    
-                    // খারাপ মেসেজটাকেও রিপ্লাই করে ওয়ার্নিং দেওয়া হবে
-                    api.sendMessage({ body: warningMessage, mentions: [{ tag: warningMessage, id: senderId }] }, threadId, messageID);
+                    api.sendMessage(warningMessage, threadId, messageID);
                     api.setMessageReaction("😡", messageID, (err) => { if(err) console.error(err); }, true);
                     return; 
                 }
 
-                // ✨ ২. অটো রিয়েক্ট সিস্টেম (মেসেজ আসার সাথে সাথে রিয়েক্ট মারবে)
+                // ✨ ২. অটো রিয়েক্টシステム (মুড বুঝে রিয়েক্ট মারবে)
                 const emoji = getReactionEmoji(messageBody);
                 if (emoji) {
                     api.setMessageReaction(emoji, messageID, (err) => {
@@ -89,15 +88,23 @@ function startBot() {
                 // ⏰ ৩. রান-টাইম চেক: কেউ গ্রুপে /start দিলে
                 if (lowerBody === '/start') {
                     const uptimeMessage = `🤖 ওমর অন ফায়ার বট অ্যাক্টিভ আছে ওস্তাদ!\n${getUptime()}`;
-                    api.sendMessage(uptimeMessage, threadId, messageID); // নির্দিষ্ট মেসেজকে রিপ্লাই
+                    api.sendMessage(uptimeMessage, threadId, messageID);
                     return;
                 }
 
-                // 💥 ৪. অল-মেসেজ ক্যাপশন রিপ্লাই (এখন যে কেউ যাই মেসেজ দিক না কেন, বট রিপ্লাই করবে)
+                // 🤖 ৪. স্পেশাল বট ডাক সিস্টেম: কেউ যদি 'bot', 'বট' বা '/bot' লেখে
+                if (isCallingBot(messageBody)) {
+                    const specialReply = getBotReply();
+                    console.log(`🤖 বটকে ডাকা হয়েছে! স্পেশাল রেপ্লাই: "${specialReply}"`);
+                    api.sendMessage(specialReply, threadId, (err) => {
+                        if (err) console.error("স্পেশাল রেপ্লাই পাঠাতে সমস্যা:", err);
+                    }, messageID);
+                    return; // স্পেশাল জবাব দেওয়া হয়ে গেলে কাজ শেষ, নিচের সাধারণ ক্যাপশনে আর যাবে না
+                }
+
+                // 💥 ৫. অল-মেসেজ ক্যাপশন রিপ্লাই (কেউ সাধারণ কোনো মেসেজ দিলে)
                 const randomCaption = getRandomCaption();
-                console.log(`💬 অল-মেসেজ রেপ্লাই! পাঠানো হচ্ছে: "${randomCaption}"`);
-                
-                // এখানে আমরা অবজেক্ট না পাঠিয়ে সরাসরি মেসেজ টেক্সট এবং ৩য় প্যারামিটার হিসেবে messageID পাস করছি জাস্ট চট করে রিপ্লাই হওয়ার জন্য
+                console.log(`💬 সাধারণ রেপ্লাই! পাঠানো হচ্ছে: "${randomCaption}"`);
                 api.sendMessage(randomCaption, threadId, (err) => {
                     if (err) console.error("ক্যাপশন রিপ্লাই পাঠাতে সমস্যা:", err);
                 }, messageID);
