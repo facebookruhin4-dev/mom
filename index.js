@@ -3,17 +3,18 @@ const login = require('cyber-bot-fca');
 const fs = require('fs');
 const path = require('path');
 
-// পুরাতন ban.js এবং নতুন caption.js দুইটাই এখানে ইমপোর্ট করলাম
+// সবকটি কাস্টম ফাইল এখানে কানেক্ট করলাম
 const { hasBannedWord } = require('./ban');
 const { getRandomCaption } = require('./caption');
+const { getReactionEmoji } = require('./react'); // নতুন রিয়েক্ট ফাইল
 
-const app = express();
+const app = report || express();
 const PORT = process.env.PORT || 10000;
 
 const startTime = Date.now();
 
 app.get('/', (req, res) => {
-    res.send('Bot is running perfectly with Captions!');
+    res.send('Bot is running perfectly with Captions and Reactions!');
 });
 
 app.listen(PORT, () => {
@@ -59,38 +60,44 @@ function startBot() {
             if (message && message.body) {
                 const threadId = message.threadID;
                 const senderId = message.senderID;
-                const messageBody = message.body.trim().toLowerCase(); // ছোট হাতের অক্ষরে কনভার্ট করে নিলাম
+                const messageID = message.messageID; // রিয়েক্ট দেওয়ার জন্য মেসেজ আইডি লাগবে
+                const messageBody = message.body.trim();
+                const lowerBody = messageBody.toLowerCase();
 
                 // শুধু গ্রুপ চ্যাট এলাউ করবে, পার্সোনাল ইনবক্স ও নিজের মেসেজ ইগনোর
                 if (senderId === botID || threadId === senderId) return;
 
                 // 🚨 ১. সিকিউরিটি চেক: মেসেজে কোনো খারাপ শব্দ আছে কিনা
-                if (hasBannedWord(messageBody)) {
+                if (hasBannedWord(lowerBody)) {
                     console.log(`⚠️ খারাপ মেসেজ ডিটেক্ট হয়েছে! Sender: ${senderId}`);
                     const warningMessage = "ভাই আমি আপনার মতো বিয়াদব না এসব গালী দিয়েন না ☺️😏🥵";
                     api.sendMessage(warningMessage, threadId);
+                    // খারাপ মেসেজে একটা রাগ রিয়েক্টও মেরে দেওয়া যাক!
+                    api.setMessageReaction("😡", messageID, (err) => { if(err) console.error(err); }, true);
                     return; 
                 }
 
-                // 🤖 ২. ক্যাপশন সিস্টেম: কেউ গ্রুপে 'bot' বা '/bot' লিখে ডাকলে
-                if (messageBody === 'bot' || messageBody === '/bot') {
-                    const randomCaption = getRandomCaption(); // র্যান্ডম ক্যাপশন তুলে আনা হলো
-                    console.log(`💬 ক্যাপশন রিকোয়েস্ট! পাঠানো হচ্ছে: "${randomCaption}"`);
-                    
-                    api.sendMessage(randomCaption, threadId, (err) => {
-                        if (err) console.error("ক্যাপশন পাঠাতে সমস্যা:", err);
-                    });
-                    return; // ক্যাপশন পাঠিয়ে দিলে কাজ শেষ, নিচে আর যাবে না
+                // ✨ ২. অটো রিয়েক্ট সিস্টেম (চট করে রিয়েক্ট মেরে দিবে)
+                const emoji = getReactionEmoji(messageBody);
+                if (emoji) {
+                    api.setMessageReaction(emoji, messageID, (err) => {
+                        if (!err) console.log(`🎯 মেসেজে "${emoji}" রিয়েক্ট দেওয়া হয়েছে!`);
+                    }, true);
                 }
 
-                // ⏰ ৩. রান-টাইম চেক: কেউ গ্রুপে /start দিলে
-                if (messageBody === '/start') {
+                // 🤖 ৩. ক্যাপশন সিস্টেম: কেউ গ্রুপে 'bot' বা '/bot' লিখে ডাকলে
+                if (lowerBody === 'bot' || lowerBody === '/bot') {
+                    const randomCaption = getRandomCaption();
+                    api.sendMessage(randomCaption, threadId);
+                    return;
+                }
+
+                // ⏰ ৪. রান-টাইম চেক: কেউ গ্রুপে /start দিলে
+                if (lowerBody === '/start') {
                     const uptimeMessage = `🤖 ওমর অন ফায়ার বট অ্যাক্টিভ আছে ওস্তাদ!\n${getUptime()}`;
                     api.sendMessage(uptimeMessage, threadId);
                     return;
                 }
-
-                // [নোট: সাধারণ মেসেজে এখন আর কোনো "HI ❤️" রেপ্লাই যাবে না, শুধু কমান্ডেই কাজ করবে]
             }
         });
     });
