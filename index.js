@@ -3,12 +3,12 @@ const login = require('cyber-bot-fca');
 const fs = require('fs');
 const path = require('path');
 
-// সবকটি কাস্টম ফাইল এখানে কানেক্ট করলাম
+// সবকটি কাস্টম ফাইল কানেকশন
 const { hasBannedWord } = require('./ban');
 const { getRandomCaption } = require('./caption');
-const { getReactionEmoji } = require('./react'); // নতুন রিয়েক্ট ফাইল
+const { getReactionEmoji } = require('./react');
 
-const app = report || express();
+const app = express(); // 👑 টাইপো ফিক্সড ওস্তাদ!
 const PORT = process.env.PORT || 10000;
 
 const startTime = Date.now();
@@ -60,7 +60,7 @@ function startBot() {
             if (message && message.body) {
                 const threadId = message.threadID;
                 const senderId = message.senderID;
-                const messageID = message.messageID; // রিয়েক্ট দেওয়ার জন্য মেসেজ আইডি লাগবে
+                const messageID = message.messageID;
                 const messageBody = message.body.trim();
                 const lowerBody = messageBody.toLowerCase();
 
@@ -72,12 +72,11 @@ function startBot() {
                     console.log(`⚠️ খারাপ মেসেজ ডিটেক্ট হয়েছে! Sender: ${senderId}`);
                     const warningMessage = "ভাই আমি আপনার মতো বিয়াদব না এসব গালী দিয়েন না ☺️😏🥵";
                     api.sendMessage(warningMessage, threadId);
-                    // খারাপ মেসেজে একটা রাগ রিয়েক্টও মেরে দেওয়া যাক!
                     api.setMessageReaction("😡", messageID, (err) => { if(err) console.error(err); }, true);
                     return; 
                 }
 
-                // ✨ ২. অটো রিয়েক্ট সিস্টেম (চট করে রিয়েক্ট মেরে দিবে)
+                // ✨ ২. অটো রিয়েক্ট সিস্টেম
                 const emoji = getReactionEmoji(messageBody);
                 if (emoji) {
                     api.setMessageReaction(emoji, messageID, (err) => {
