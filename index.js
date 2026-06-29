@@ -71,23 +71,39 @@ function startBot() {
 
             if (!event) return;
 
-            // 🎯 ৫. নতুন মেম্বার জয়েন করলে স্বাগত জানানোর পারফেক্ট সিস্টেম
-            if (event.type === "log:subscribe") {
+            // 🔍 ইভেন্ট ডিবাগিং লগ (গ্রুপে কেউ এড বা রিমুভ হলে রেন্ডার লগে এই ডেটা প্রিন্ট হবে)
+            if (event.type && (event.type.includes("subscribe") || event.type.includes("log") || event.type.includes("event"))) {
+                console.log("🎯 DETECTED EVENT TYPE:", event.type);
+                console.log("📊 FULL EVENT DATA:", JSON.stringify(event, null, 2));
+            }
+
+            // 🎯 ৫. নতুন মেম্বার জয়েন করলে স্বাগত জানানোর সিস্টেম
+            if (event.type === "log:subscribe" || event.type === "subscribe") {
                 const threadId = event.threadID;
                 activeThreadID = threadId; 
 
-                // যদি বট নিজে গ্রুপে অ্যাড হয়
-                if (event.logMessageData.addedParticipants.some(i => i.userFbId == botID)) {
-                    api.sendMessage("কী রে বলদের দল! আমাকে গ্রুপে এড করলি কেন? এখন তোদের কপালে শনি আছে! 🔥", threadId);
-                } else {
-                    // অন্য কোনো নতুন বলদ জয়েন করলে
-                    event.logMessageData.addedParticipants.forEach((participant) => {
-                        const name = participant.fullName;
-                        const welcomeText = getWelcomeMessage(name);
-                        api.sendMessage(welcomeText, threadId);
-                    });
+                try {
+                    // বট নিজে গ্রুপে অ্যাড হলে
+                    if (event.logMessageData && event.logMessageData.addedParticipants && event.logMessageData.addedParticipants.some(i => i.userFbId == botID)) {
+                        api.sendMessage("কী রে বলদের দল! আমাকে গ্রুপে এড করলি কেন? এখন তোদের কপালে শনি আছে! 🔥", threadId);
+                        return;
+                    }
+                    
+                    // অন্য কোনো নতুন মেম্বার জয়েন করলে
+                    if (event.logMessageData && event.logMessageData.addedParticipants) {
+                        event.logMessageData.addedParticipants.forEach((participant) => {
+                            const name = participant.fullName || "নতুন মেম্বার";
+                            const welcomeText = getWelcomeMessage(name);
+                            api.sendMessage(welcomeText, threadId);
+                        });
+                    } else {
+                        // যদি ডাটা ফরম্যাট ভিন্ন হয়, ব্যাকআপ হিসেবে এই মেসেজ যাবে
+                        api.sendMessage("গ্রুপে নতুন মেম্বার এসেছে! স্বাগতম বলদ! 🎉", threadId);
+                    }
+                } catch (error) {
+                    console.error("❌ ওয়েলকাম মেসেজ পাঠাতে ক্র্যাশ হয়েছে:", error);
                 }
-                return; // 🛑 এখানেই কোড থামবে, নিচের ক্যাপশন লজিকে যাবে না
+                return; 
             }
 
             // 💬 সাধারণ মেসেজ হ্যান্ডলিং
@@ -109,7 +125,7 @@ function startBot() {
                 // 🚨 ১. সিকিউরিটি চেক: মেসেজে কোনো খারাপ শব্দ আছে কিনা
                 if (hasBannedWord(lowerBody)) {
                     console.log(`⚠️ খারাপ মেসেজ ডিটেক্ট হয়েছে! Sender: ${senderId}`);
-                    const warningMessage = "ভাই আমি আপনার মতো বিয়াদব না এসব গালী দিয়েন না ☺️😏🥵";
+                    const warningMessage = "ভাই আমি আপনার মতো বিядব না এসব গালী দিয়েন না ☺️😏🥵";
                     api.sendMessage(warningMessage, threadId, messageID);
                     api.setMessageReaction("😡", messageID, (err) => { if(err) console.error(err); }, true);
                     return; 
