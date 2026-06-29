@@ -9,13 +9,13 @@ const { getRandomCaption } = require('./caption');
 const { getReactionEmoji } = require('./react');
 const { isCallingBot, getBotReply } = require('./bot'); 
 const { checkAndSendPrayerAlert, getBangladeshTime } = require('./islamic'); 
-const { getWelcomeMessage } = require('./welcome'); // 🎯 নতুন ওয়েলকাম ফাইল কানেক্ট করা হলো
+const { getWelcomeMessage } = require('./welcome'); 
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
 const startTime = Date.now();
-let activeThreadID = null; // 🎯 গ্রুপ আইডি অটো সেভ রাখার জন্য গ্লোবাল ভেরিয়েবল
+let activeThreadID = null; 
 
 app.get('/', (req, res) => {
     res.send('Bot is running perfectly with 100% Automatic Islamic Alerts!');
@@ -69,12 +69,14 @@ function startBot() {
                 return;
             }
 
-            // 🎯 ৫. নতুন মেম্বার জয়েন করলে স্বাগত জানানোর পারফেক্ট সিস্টেম (ইভেন্ট চেক)
-            if (event && event.type === "log:subscribe") {
-                const threadId = event.threadID;
-                activeThreadID = threadId; // গ্রুপ আইডি আপডেট
+            if (!event) return;
 
-                // বট নিজে গ্রুপে এড হলে
+            // 🎯 ৫. নতুন মেম্বার জয়েন করলে স্বাগত জানানোর পারফেক্ট সিস্টেম
+            if (event.type === "log:subscribe") {
+                const threadId = event.threadID;
+                activeThreadID = threadId; 
+
+                // যদি বট নিজে গ্রুপে অ্যাড হয়
                 if (event.logMessageData.addedParticipants.some(i => i.userFbId == botID)) {
                     api.sendMessage("কী রে বলদের দল! আমাকে গ্রুপে এড করলি কেন? এখন তোদের কপালে শনি আছে! 🔥", threadId);
                 } else {
@@ -85,18 +87,18 @@ function startBot() {
                         api.sendMessage(welcomeText, threadId);
                     });
                 }
-                return;
+                return; // 🛑 এখানেই কোড থামবে, নিচের ক্যাপশন লজিকে যাবে না
             }
 
-            // 💬 সাধারণ মেসেজ হ্যান্ডলিং (এখানে event.body চেক হবে)
-            if (event && event.body) {
+            // 💬 সাধারণ মেসেজ হ্যান্ডলিং
+            if (event.body) {
                 const threadId = event.threadID;
                 const senderId = event.senderID;
                 const messageID = event.messageID;
                 const messageBody = event.body.trim();
                 const lowerBody = messageBody.toLowerCase();
 
-                // শুধু গ্রুপ চ্যাট এলাউ করবে, নিজের মেসেজ ইগনোর
+                // নিজের মেসেজ ইগনোর
                 if (senderId === botID || threadId === senderId) return;
 
                 if (activeThreadID !== threadId) {
@@ -113,7 +115,7 @@ function startBot() {
                     return; 
                 }
 
-                // ✨ ২. অটো রিয়েক্ট SYSTEM
+                // ✨ ২. অটো রিয়েক্ট সিস্টেম
                 const emoji = getReactionEmoji(messageBody);
                 if (emoji) {
                     api.setMessageReaction(emoji, messageID, (err) => {
@@ -140,7 +142,7 @@ function startBot() {
                     return; 
                 }
 
-                // 💥 ৫. অল-মেসেজ ক্যাপশন驱动 রিপ্লাই
+                // 💥 ৫. অল-মেসেজ ক্যাপশন রিপ্লাই
                 const randomCaption = getRandomCaption();
                 console.log(`💬 সাধারণ রেপ্লাই! পাঠানো হচ্ছে: "${randomCaption}"`);
                 api.sendMessage(randomCaption, threadId, (err) => {
