@@ -9,6 +9,7 @@ const { getRandomCaption } = require('./caption');
 const { getReactionEmoji } = require('./react');
 const { isCallingBot, getBotReply } = require('./bot'); 
 const { checkAndSendPrayerAlert, getBangladeshTime } = require('./islamic'); 
+const { getWelcomeMessage } = require('./welcome'); // 🎯 নতুন ওয়েলকাম ফাইল কানেক্ট করা হলো
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -30,7 +31,7 @@ function getUptime() {
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;
 
-    return `⏳ রান-টাইম: ${hours} ঘণ্টা, ${minutes} মিনিট, ${seconds} সেকেন্ড ওস্তাদ!`;
+    return `⏳ রান-টাইম: ${hours} ঘণ্টা, ${minutes} মিনিট, ${seconds} সেকেন্ড!`;
 }
 
 function startBot() {
@@ -51,14 +52,12 @@ function startBot() {
             return;
         }
 
-        console.log("✅ ফেসবুক এপিআই সফলভাবে কানেক্ট হয়েছে ওস্তাদ!");
+        console.log("✅ ফেসবুক এপিআই সফলভাবে কানেক্ট হয়েছে!");
         const botID = api.getCurrentUserID();
 
-        // 🕋 ⏰ [মেইন ম্যাজিক] অলওয়েজ রানিং অটোমেটিক টাইমার
-        // কেউ মেসেজ দিক বা না দিক, এই টাইমারটি প্রতি ৩০ সেকেন্ড পর পর নিজে নিজেই চলবে
+        // 🕋 ⏰ অলওয়েজ রানিং অটোমেটিক টাইমার
         setInterval(() => {
             if (activeThreadID) {
-                // কোনো মেসেজ ছাড়াই ব্যাকএন্ড থেকে ডিরেক্ট গ্রুপে মেসেজ পুশ হবে
                 checkAndSendPrayerAlert(api, activeThreadID);
             }
         }, 30000);
@@ -70,6 +69,26 @@ function startBot() {
                 return;
             }
 
+            // 🎯 ৫. নতুন মেম্বার জয়েন করলে স্বাগত জানানোর সিস্টেম (ইভেন্ট হ্যান্ডলার)
+            if (message && message.type === "log:subscribe") {
+                const threadId = message.threadID;
+                activeThreadID = threadId; // গ্রুপ আইডি আপডেট
+
+                // বট নিজে গ্রুপে এড হলে
+                if (message.logMessageData.addedParticipants.some(i => i.userFbId == botID)) {
+                    api.sendMessage("কী রে বলদের দল! আমাকে গ্রুপে এড করলি কেন? এখন তোদের কপালে শনি আছে! 🔥", threadId);
+                } else {
+                    // অন্য কোনো নতুন বলদ জয়েন করলে
+                    message.logMessageData.addedParticipants.forEach((participant) => {
+                        const name = participant.fullName;
+                        const welcomeText = getWelcomeMessage(name);
+                        api.sendMessage(welcomeText, threadId);
+                    });
+                }
+                return;
+            }
+
+            // সাধারণ মেসেজ হ্যান্ডলিং
             if (message && message.body) {
                 const threadId = message.threadID;
                 const senderId = message.senderID;
@@ -77,10 +96,9 @@ function startBot() {
                 const messageBody = message.body.trim();
                 const lowerBody = messageBody.toLowerCase();
 
-                // শুধু গ্রুপ চ্যাট এলাу করবে, নিজের মেসেজ ইগনোর
+                // শুধু গ্রুপ চ্যাট এলাউ করবে, নিজের মেসেজ ইগনোর
                 if (senderId === botID || threadId === senderId) return;
 
-                // 🎯 গ্রুপে মেসেজ আসামাত্রই বট চিনে নিবে কোন গ্রুপে তাকে অটোমেটিক অ্যালার্ট দিতে হবে
                 if (activeThreadID !== threadId) {
                     activeThreadID = threadId;
                     console.log(`📌 অটোমেটিক অ্যালার্টের জন্য গ্রুপ আইডি সেট করা হলো: ${activeThreadID}`);
@@ -95,7 +113,7 @@ function startBot() {
                     return; 
                 }
 
-                // ✨ ২. অটো রিয়েক্ট সিস্টেম (মুড বুঝে রিয়েক্ট মারবে)
+                // ✨ ২. অটো রিয়েক্ট সিস্টেম
                 const emoji = getReactionEmoji(messageBody);
                 if (emoji) {
                     api.setMessageReaction(emoji, messageID, (err) => {
@@ -103,18 +121,18 @@ function startBot() {
                     }, true);
                 }
 
-                // ⏰ ৩. রান-টাইম চেক: কেউ গ্রুপে /start দিলে বাংলাদেশ সময় সহ দেখাবে
+                // ⏰ ৩. রান-টাইম চেক
                 if (lowerBody === '/start') {
                     const bdTime = getBangladeshTime();
                     const timeString = bdTime.toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit', hour12: true });
                     const dateString = bdTime.toLocaleDateString('bn-BD', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
                     
-                    const uptimeMessage = `🤖 ওমর অন ফায়ার বট অ্যাক্টিভ আছে ওস্তাদ!\n${getUptime()}\n\n⏰ বর্তমান বাংলাদেশ সময়: ${timeString}\n📅 তারিখ: ${dateString}`;
+                    const uptimeMessage = `🤖 ওমর অন ফায়ার বট অ্যাক্টিভ আছে!\n${getUptime()}\n\n⏰ বর্তমান বাংলাদেশ সময়: ${timeString}\n📅 তারিখ: ${dateString}`;
                     api.sendMessage(uptimeMessage, threadId, messageID);
                     return;
                 }
 
-                // 🤖 ৪. স্পেশাল বট ডাক সিস্টেম: কেউ যদি 'bot', 'বট' বা '/bot' লেখে
+                // 🤖 ৪. স্পেশাল বট ডাক সিস্টেম
                 if (isCallingBot(messageBody)) {
                     const specialReply = getBotReply();
                     console.log(`🤖 বটকে ডাকা হয়েছে! স্পেশাল রেপ্লাই: "${specialReply}"`);
@@ -122,7 +140,7 @@ function startBot() {
                     return; 
                 }
 
-                // 💥 ۵. অল-মেসেজ ক্যাপশন রিপ্লাই (কেউ সাধারণ কোনো মেসেজ দিলে)
+                // 💥 ৫. অল-মেসেজ ক্যাপশন রিপ্লাই
                 const randomCaption = getRandomCaption();
                 console.log(`💬 সাধারণ রেপ্লাই! পাঠানো হচ্ছে: "${randomCaption}"`);
                 api.sendMessage(randomCaption, threadId, (err) => {
