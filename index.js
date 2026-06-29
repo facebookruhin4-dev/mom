@@ -71,14 +71,8 @@ function startBot() {
 
             if (!event) return;
 
-            // 🔍 ইভেন্ট ডিবাগিং লগ (গ্রুপে কেউ এড বা রিমুভ হলে রেন্ডার লগে এই ডেটা প্রিন্ট হবে)
-            if (event.type && (event.type.includes("subscribe") || event.type.includes("log") || event.type.includes("event"))) {
-                console.log("🎯 DETECTED EVENT TYPE:", event.type);
-                console.log("📊 FULL EVENT DATA:", JSON.stringify(event, null, 2));
-            }
-
-            // 🎯 ৫. নতুন মেম্বার জয়েন করলে স্বাগত জানানোর সিস্টেম
-            if (event.type === "log:subscribe" || event.type === "subscribe") {
+            // 🎯 নতুন মেম্বার জয়েন করার পারফেক্ট ফিক্স (লগ অনুযায়ী logMessageType চেক করা হলো)
+            if (event.type === "event" && event.logMessageType === "log:subscribe") {
                 const threadId = event.threadID;
                 activeThreadID = threadId; 
 
@@ -89,21 +83,18 @@ function startBot() {
                         return;
                     }
                     
-                    // অন্য কোনো নতুন মেম্বার জয়েন করলে
+                    // অন্য কোনো নতুন মেম্বার জয়েন করলে (যেমন: রুহিন চৌধুরী)
                     if (event.logMessageData && event.logMessageData.addedParticipants) {
                         event.logMessageData.addedParticipants.forEach((participant) => {
                             const name = participant.fullName || "নতুন মেম্বার";
                             const welcomeText = getWelcomeMessage(name);
                             api.sendMessage(welcomeText, threadId);
                         });
-                    } else {
-                        // যদি ডাটা ফরম্যাট ভিন্ন হয়, ব্যাকআপ হিসেবে এই মেসেজ যাবে
-                        api.sendMessage("গ্রুপে নতুন মেম্বার এসেছে! স্বাগতম বলদ! 🎉", threadId);
                     }
                 } catch (error) {
                     console.error("❌ ওয়েলকাম মেসেজ পাঠাতে ক্র্যাশ হয়েছে:", error);
                 }
-                return; 
+                return; // 🛑 এখানেই কোড রিটার্ন করবে, নিচের ফালতু মেসেজ লজিকে যাবে না
             }
 
             // 💬 সাধারণ মেসেজ হ্যান্ডলিং
