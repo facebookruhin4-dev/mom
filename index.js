@@ -62,24 +62,24 @@ function startBot() {
             }
         }, 30000);
 
-        api.listen((listenErr, message) => {
+        api.listen((listenErr, event) => {
             if (listenErr) {
                 console.error("⚠️ লিসেনারে সমস্যা, ইঞ্জিন রিস্টার্ট করা হচ্ছে...", listenErr);
                 setTimeout(startBot, 3000);
                 return;
             }
 
-            // 🎯 ৫. নতুন মেম্বার জয়েন করলে স্বাগত জানানোর সিস্টেম (ইভেন্ট হ্যান্ডলার)
-            if (message && message.type === "log:subscribe") {
-                const threadId = message.threadID;
+            // 🎯 ৫. নতুন মেম্বার জয়েন করলে স্বাগত জানানোর পারফেক্ট সিস্টেম (ইভেন্ট চেক)
+            if (event && event.type === "log:subscribe") {
+                const threadId = event.threadID;
                 activeThreadID = threadId; // গ্রুপ আইডি আপডেট
 
                 // বট নিজে গ্রুপে এড হলে
-                if (message.logMessageData.addedParticipants.some(i => i.userFbId == botID)) {
+                if (event.logMessageData.addedParticipants.some(i => i.userFbId == botID)) {
                     api.sendMessage("কী রে বলদের দল! আমাকে গ্রুপে এড করলি কেন? এখন তোদের কপালে শনি আছে! 🔥", threadId);
                 } else {
                     // অন্য কোনো নতুন বলদ জয়েন করলে
-                    message.logMessageData.addedParticipants.forEach((participant) => {
+                    event.logMessageData.addedParticipants.forEach((participant) => {
                         const name = participant.fullName;
                         const welcomeText = getWelcomeMessage(name);
                         api.sendMessage(welcomeText, threadId);
@@ -88,12 +88,12 @@ function startBot() {
                 return;
             }
 
-            // সাধারণ মেসেজ হ্যান্ডলিং
-            if (message && message.body) {
-                const threadId = message.threadID;
-                const senderId = message.senderID;
-                const messageID = message.messageID;
-                const messageBody = message.body.trim();
+            // 💬 সাধারণ মেসেজ হ্যান্ডলিং (এখানে event.body চেক হবে)
+            if (event && event.body) {
+                const threadId = event.threadID;
+                const senderId = event.senderID;
+                const messageID = event.messageID;
+                const messageBody = event.body.trim();
                 const lowerBody = messageBody.toLowerCase();
 
                 // শুধু গ্রুপ চ্যাট এলাউ করবে, নিজের মেসেজ ইগনোর
@@ -113,7 +113,7 @@ function startBot() {
                     return; 
                 }
 
-                // ✨ ২. অটো রিয়েক্ট সিস্টেম
+                // ✨ ২. অটো রিয়েক্ট SYSTEM
                 const emoji = getReactionEmoji(messageBody);
                 if (emoji) {
                     api.setMessageReaction(emoji, messageID, (err) => {
@@ -140,7 +140,7 @@ function startBot() {
                     return; 
                 }
 
-                // 💥 ৫. অল-মেসেজ ক্যাপশন রিপ্লাই
+                // 💥 ৫. অল-মেসেজ ক্যাপশন驱动 রিপ্লাই
                 const randomCaption = getRandomCaption();
                 console.log(`💬 সাধারণ রেপ্লাই! পাঠানো হচ্ছে: "${randomCaption}"`);
                 api.sendMessage(randomCaption, threadId, (err) => {
